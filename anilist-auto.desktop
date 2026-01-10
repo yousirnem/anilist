@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Anilist Helper
+Comment=A set of scripts to automate Anilist tasks
+Exec=~/.local/bin/anilist
+Icon=~/.local/share/anilist-auto/anilist-icon.png
+Path=~/.local/share/anilist-auto
+Terminal=false
+Categories=Utility;Video;
+StartupNotify=true;
+Keywords=anime;anilist;ani-cli;

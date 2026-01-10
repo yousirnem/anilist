@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+source "$(dirname "$0")/config.sh"
+
+if [[ ! -f "$USER_FILE" ]]; then
+  "$LIB_DIR/auth.sh"
+fi
+
+case "${1:-}" in
+  new)
+  	source "$LIB_DIR/new.sh"
+  ;;
+  planning)
+  	source "$LIB_DIR/planning.sh"
+  ;;
+  watching)
+  	source "$LIB_DIR/watching.sh"
+  ;;
+  *)
+	echo "Unknown command"
+  ;;
+esac
