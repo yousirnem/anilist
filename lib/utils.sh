@@ -9,15 +9,15 @@ normalize() {
 
 format_duration() {
   local s=$1
-  (( s < 0 )) && echo "ya disponible" && return
+  ((s < 0)) && echo "avalible" && return
 
   local d=$((s / 86400))
-  local h=$(( (s % 86400) / 3600 ))
-  local m=$(( (s % 3600) / 60 ))
+  local h=$(((s % 86400) / 3600))
+  local m=$(((s % 3600) / 60))
 
-  if (( d > 0 )); then
+  if ((d > 0)); then
     printf "%dd %dh %dm" "$d" "$h" "$m"
-  elif (( h > 0 )); then
+  elif ((h > 0)); then
     printf "%dh %dm" "$h" "$m"
   else
     printf "%dm" "$m"

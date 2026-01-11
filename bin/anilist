@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-source "$(dirname "$0")/config.sh"
+source "$HOME/.local/share/anilist/config.sh"
 
 if [[ ! -f "$USER_FILE" ]]; then
   "$LIB_DIR/auth.sh"

@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Anilist
+Exec=anilist
+Terminal=false
+Categories=Utility;
+Keywords=anime;anilist;
+Actions=new;watch;
+
+[Desktop Action new]
+Name=New
+Exec=anilist new
+
+[Desktop Action watch]
+Name=Watch
+Exec=anilist watching

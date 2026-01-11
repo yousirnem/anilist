@@ -2,7 +2,7 @@
 set -uo pipefail
 
 LOG="$HOME/.local/share/anilist/update-debug.log"
-exec >>"$LOG" 2>&1
+exec >> "$LOG" 2>&1
 echo "---- $(date) ----"
 
 source "$(dirname "$0")/../config.sh"
@@ -38,16 +38,16 @@ response=$(curl -s -X POST "$API" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "$(jq -n --arg query "$query" --arg search "$NAME" \
-      '{query: $query, variables: {search: $search}}')")
+    '{query: $query, variables: {search: $search}}')")
 
 match=$(echo "$response" | jq -r '.data.Page.media[0] // empty')
 
 [[ -z "$match" ]] && dunstify "❌ $NAME not found" && exit 1
 
-media_id=$(jq -r '.id' <<<"$match")
-title=$(jq -r '.title.romaji' <<<"$match")
-entry_id=$(jq -r '.mediaListEntry.id // empty' <<<"$match")
-progress=$(jq -r '.mediaListEntry.progress // 0' <<<"$match")
+media_id=$(jq -r '.id' <<< "$match")
+title=$(jq -r '.title.romaji' <<< "$match")
+entry_id=$(jq -r '.mediaListEntry.id // empty' <<< "$match")
+progress=$(jq -r '.mediaListEntry.progress // 0' <<< "$match")
 
 new_progress=$((progress + 1))
 
@@ -69,9 +69,9 @@ update=$(curl -s -X POST https://graphql.anilist.co \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "$(jq -n --arg query "$mutation" --argjson variables "$variables" \
-      '{query: $query, variables: $variables}')")
+    '{query: $query, variables: $variables}')")
 
-if echo "$update" | jq -e '.data.SaveMediaListEntry' >/dev/null; then
+if echo "$update" | jq -e '.data.SaveMediaListEntry' > /dev/null; then
   dunstify "✅ $title → Ep. $new_progress"
 else
   dunstify "❌ Error updating $title"

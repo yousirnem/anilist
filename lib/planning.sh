@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/config.sh"
 
-USERNAME=$(< "$USER_FILE")      # AniList username
+USERNAME=$(< "$USER_FILE") # AniList username
 TOKEN=$(< "$TOKEN_FILE")
 
 choice=$(printf "Serie\nMovie" | rofi -dmenu -i -p "Choose")
@@ -36,7 +36,7 @@ response=$(curl -s -X POST https://graphql.anilist.co \
   -H "Authorization: Bearer $TOKEN" \
   -d "$payload")
 
-if echo "$response" | jq -e '.errors? | length > 0' >/dev/null; then
+if echo "$response" | jq -e '.errors? | length > 0' > /dev/null; then
   dunstify -u critical "AniList Error" "$(echo "$response" | jq -r '.errors[0].message')"
   exit 1
 fi
@@ -80,7 +80,7 @@ if [[ "$choice" == "Serie" ]]; then
     -d "$mutation_payload")
   set -e
 
-  if ! echo "$update" | jq '.data.SaveMediaListEntry' >/dev/null; then
+  if ! echo "$update" | jq '.data.SaveMediaListEntry' > /dev/null; then
     dunstify -u critical "AniList Update Failed"
     exit 1
   fi
@@ -103,4 +103,3 @@ else
 
   ani-cli "$anime_name" --no-detach --exit-after-play -S 1
 fi
-

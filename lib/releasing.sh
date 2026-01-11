@@ -2,10 +2,8 @@
 set -euo pipefail
 source "$(dirname "$0")/../config.sh"
 
-
-
 USER_ID=$(< "$USER_FILE")
-ACCESS_TOKEN=$(< "$ANILIST_TOKEN_FILE")
+ACCESS_TOKEN=$(< "$TOKEN_FILE")
 
 TODAY_TS=$(date +%s)
 
@@ -18,7 +16,8 @@ echo "User: $USER_ID"
 echo "Now:  $(date)"
 echo
 
-query=$(cat <<EOF
+query=$(
+  cat << EOF
 query (\$user: String) {
   MediaListCollection(userName: \$user, type: ANIME, status: PLANNING) {
     lists {
@@ -95,7 +94,7 @@ echo "$entries" | jq -c '.[]' | while read -r entry; do
   fi
 
   if [[ "$next_ep" == "1" ]]; then
-    if (( airing_at > TODAY_TS )); then
+    if ((airing_at > TODAY_TS)); then
       echo "[SKIP] Episode 1 not aired yet"
       continue
     fi
