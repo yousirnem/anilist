@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-LOG="$HOME/.local/share/anilist/update-debug.log"
+LOG="$HOME/.local/share/anilist/logs/update-debug.log"
 exec >> "$LOG" 2>&1
 echo "---- $(date) ----"
 
