@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/config.sh"
+
+source "$HOME/.local/share/anilist/config.sh"
+source "$HOME/.local/share/anilist/lib/utils.sh"
 
 USERNAME=$(< "$USER_FILE") # AniList username
 TOKEN=$(< "$TOKEN_FILE")
@@ -86,7 +88,7 @@ if [[ "$choice" == "Serie" ]]; then
   fi
 
   dunstify -u low "▶️ $anime_name → Watching"
-  ani-cli "$anime_name" -e 1 --no-detach --exit-after-play -S 1
+  ani-cli "$anime_name" --skip --rofi --no-detach --exit-after-play
 
 else
   list=$(echo "$response" | jq -r '

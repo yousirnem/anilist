@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=Anilist
-Exec=anilist
+Exec=anilist watching
 Terminal=false
 Categories=Utility;
 Keywords=anime;anilist;
-Actions=new;watch;
+Actions=new;planning;
 
 [Desktop Action new]
 Name=New
@@ -13,4 +13,4 @@ Exec=anilist new
 
 [Desktop Action watch]
 Name=Watch
-Exec=anilist watching
+Exec=anilist planning 

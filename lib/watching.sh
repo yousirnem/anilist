@@ -83,8 +83,7 @@ EOF
 
       not_released+=(
         "$anime_name — Ep. $episode_num
-	on: $airing_date
-	( $remaining_fmt" ')'
+	on: $airing_date, $remaining_fmt remaining"
       )
     else
       not_released+=(
