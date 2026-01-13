@@ -6,6 +6,9 @@ if [[ ! -f "$USER_FILE" ]]; then
 fi
 
 case "${1:-}" in
+  auth)
+	source "$LIB_DIR/auth.sh"
+  ;;
   new)
   	source "$LIB_DIR/new.sh"
   ;;
@@ -14,6 +17,9 @@ case "${1:-}" in
   ;;
   watching)
   	source "$LIB_DIR/watching.sh"
+  ;;
+  binge)
+	source "$LIB_DIR/binge.sh"
   ;;
   *)
 	echo "Unknown command"

@@ -5,12 +5,16 @@ Exec=anilist watching
 Terminal=false
 Categories=Utility;
 Keywords=anime;anilist;
-Actions=new;planning;
+Actions=new;planning;binge;
 
 [Desktop Action new]
 Name=New
 Exec=anilist new
 
-[Desktop Action watch]
-Name=Watch
+[Desktop Action planning]
+Name=Planning
 Exec=anilist planning 
+
+[Desktop Action binge]
+Name=Binge
+Exec=anilist binge

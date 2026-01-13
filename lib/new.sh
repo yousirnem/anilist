@@ -16,7 +16,12 @@ ANILIST_TOKEN=$(< "$TOKEN_FILE")
 # =====================
 # Search input
 # =====================
-search=$(rofi -dmenu -i -p "Search anime")
+if [[ -t 0 ]]; then
+  search=$(rofi -dmenu -i -p "Search anime")
+else
+  read -r search
+fi
+
 [ -z "$search" ] && exit 0
 
 # =====================

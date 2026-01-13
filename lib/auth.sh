@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/../config.sh"
+
+source "$HOME/.local/share/anilist/config.sh"
+source "$HOME/.local/share/anilist/lib/utils.sh"
 
 CODE="$*"
 
@@ -37,7 +39,7 @@ if [ "$ACCESS_TOKEN" != "null" ] && [ -n "$ACCESS_TOKEN" ]; then
   echo "✅ Access token saved"
 else
   echo "❌ Failed to get access token"
-  echo
+
   echo "$RESPONSE" | jq
   exit 1
 fi

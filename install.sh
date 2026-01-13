@@ -5,7 +5,7 @@ IFS=$'\n\t'
 deps=(curl jq dunstify ani-cli mpv rofi ani-skip)
 
 for dep in "${deps[@]}"; do
-  command -v "$dep" >/dev/null || {
+  command -v "$dep" > /dev/null || {
     echo "Missing dependency: $dep" >&2
     exit 1
   }
@@ -17,8 +17,9 @@ LIB_DIR="$PREFIX/lib"
 MPV_DIR="$PREFIX/mpv"
 CACHE_DIR="$PREFIX/cache"
 DESKTOP_DIR="$HOME/.local/share/applications"
+BIN_DIR="$PREFIX/bin"
 
-mkdir -p "$PREFIX" "$DATA_DIR" "$LIB_DIR" "$MPV_DIR" "$CACHE_DIR"
+mkdir -p "$PREFIX" "$DATA_DIR" "$LIB_DIR" "$MPV_DIR" "$CACHE_DIR" "$BIN_DIR"
 mkdir -p "$HOME/.config/mpv/scripts"
 mkdir -p "$DESKTOP_DIR"
 
@@ -29,8 +30,6 @@ install -Dm644 ./mpv/anime-update.lua "$MPV_DIR/anime-update.lua"
 install -Dm644 ./anilist.desktop "$DESKTOP_DIR/anilist.desktop"
 
 ln -sf "$MPV_DIR/anime-update.lua" \
-       "$HOME/.config/mpv/scripts/anime-update.lua"
+  "$HOME/.config/mpv/scripts/anime-update.lua"
 
-command -v update-desktop-database >/dev/null && \
-  update-desktop-database "$HOME/.local/share/applications"
-
+echo "make sure you have .local/bin on your path"
