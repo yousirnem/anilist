@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# =====================
-# Config
-# =====================
 source "$HOME/.local/share/anilist/config.sh"
-
-ANILIST_API="https://graphql.anilist.co"
+source "$HOME/.local/share/anilist/lib/api.sh"
 
 if [[ ! -f "$TOKEN_FILE" ]]; then
   bash "$LIB_DIR/auth.sh" || exit 1
 fi
 
-ANILIST_TOKEN=$(< "$TOKEN_FILE")
-# =====================
 # Search input
-# =====================
 if [[ -t 0 ]]; then
   search=$(rofi -dmenu -i -p "Search anime")
 else
@@ -24,19 +17,12 @@ fi
 
 [ -z "$search" ] && exit 0
 
-# =====================
 # AniList search query
-# =====================
-response=$(curl -s "$API" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n --arg s "$search" '{
-    query: "query ($search: String) { Page(perPage: 10) { media(search: $search, type: ANIME) { id title { romaji english native } } } }",
-    variables: { search: $s }
-  }')")
+query=$(get_new_search_query)
+variables=$(jq -n --arg s "$search" '{search: $s}')
+response=$(call_api "$query" "$variables")
 
-# =====================
 # Parse results
-# =====================
 mapfile -t results < <(
   echo "$response" | jq -r '
     .data.Page.media[]
@@ -51,9 +37,7 @@ count="${#results[@]}"
   exit 1
 }
 
-# =====================
 # Auto-pick if only 1 result
-# =====================
 if [ "$count" -eq 1 ]; then
   choice="${results[0]}"
 else
@@ -61,26 +45,16 @@ else
   [ -z "$choice" ] && exit 0
 fi
 
-# =====================
 # Extract ID and title
-# =====================
 media_id="${choice%%::*}"
 title="${choice#*::}"
 
-# =====================
 # Set status to WATCHING
-# =====================
-curl -s "$ANILIST_API" \
-  -H "Authorization: Bearer $ANILIST_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n --argjson id "$media_id" '{
-    query: "mutation ($mediaId: Int) { SaveMediaListEntry(mediaId: $mediaId, status: CURRENT) { id } }",
-    variables: { mediaId: $id }
-  }')" > /dev/null
+mutation=$(get_save_media_list_entry_mutation)
+variables=$(jq -n --argjson mediaId "$media_id" '{mediaId: $mediaId, status: "CURRENT"}')
+call_api "$mutation" "$variables" > /dev/null
 
-# =====================
 # Play with ani-cli
-# =====================
 ani-cli "$title" \
   --skip \
   --no-detach \

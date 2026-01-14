@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/../config.sh"
+source "$(dirname "$0")/api.sh"
 
+# Check for user authentication
 USER_ID=$(< "$USER_FILE")
-ACCESS_TOKEN=$(< "$TOKEN_FILE")
+
+if [[ ! -f "$TOKEN_FILE" ]]; then
+  bash "$LIB_DIR/auth.sh" || exit 1
+fi
 
 TODAY_TS=$(date +%s)
 
+# Cache file for processed anime
 CACHE_FILE="$DATA_DIR/anilist-auto-watch.json"
 mkdir -p "$(dirname "$CACHE_FILE")"
 [[ -f "$CACHE_FILE" ]] || echo "[]" > "$CACHE_FILE"
@@ -16,41 +22,10 @@ echo "User: $USER_ID"
 echo "Now:  $(date)"
 echo
 
-query=$(
-  cat << EOF
-query (\$user: String) {
-  MediaListCollection(userName: \$user, type: ANIME, status: PLANNING) {
-    lists {
-      entries {
-        id
-        media {
-          id
-          title { romaji }
-          format
-          episodes
-          status
-          nextAiringEpisode {
-            episode
-            airingAt
-          }
-        }
-      }
-    }
-  }
-}
-EOF
-)
-
-response=$(curl -s -X POST "$API" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d "$(jq -n --arg query "$query" --arg user "$USER_ID" '{query: $query, variables: {user: $user}}')")
-
-if echo "$response" | jq -e '.errors' > /dev/null; then
-  echo "[ERROR] AniList returned errors:"
-  echo "$response" | jq '.errors'
-  exit 1
-fi
+# Get planning list
+query=$(get_media_list_collection_query)
+variables=$(jq -n --arg userName "$USER_ID" '{userName: $userName, status: "PLANNING"}')
+response=$(call_api "$query" "$variables")
 
 entries=$(echo "$response" | jq -c '
   .data.MediaListCollection.lists // []
@@ -63,6 +38,7 @@ echo
 
 [[ "$count" -eq 0 ]] && exit 0
 
+# Iterate through planning entries
 echo "$entries" | jq -c '.[]' | while read -r entry; do
   entry_id=$(echo "$entry" | jq -r '.id')
   media_id=$(echo "$entry" | jq -r '.media.id')
@@ -78,21 +54,25 @@ echo "$entries" | jq -c '.[]' | while read -r entry; do
   echo "Anime: $title"
   echo "Format: $format | Episodes: $episodes | Status: $status"
 
+  # Skip movies and single episode anime
   if [[ "$format" == "MOVIE" || "$episodes" == "1" ]]; then
     echo "[SKIP] Movie / single episode"
     continue
   fi
 
+  # Skip if not releasing
   if [[ "$status" != "RELEASING" ]]; then
     echo "[SKIP] Not RELEASING"
     continue
   fi
 
+  # Skip if no next airing episode
   if [[ "$airing_at" == "null" || "$next_ep" == "null" ]]; then
     echo "[SKIP] No next airing episode"
     continue
   fi
 
+  # Skip if episode 1 not aired yet
   if [[ "$next_ep" == "1" ]]; then
     if ((airing_at > TODAY_TS)); then
       echo "[SKIP] Episode 1 not aired yet"
@@ -102,6 +82,7 @@ echo "$entries" | jq -c '.[]' | while read -r entry; do
     echo "[INFO] Episode 1 already aired (next ep: $next_ep)"
   fi
 
+  # Skip if already processed
   if jq -e --arg id "$media_id" '.[] | select(. == ($id | tonumber))' "$CACHE_FILE" > /dev/null; then
     echo "[SKIP] Already processed"
     continue
@@ -109,19 +90,13 @@ echo "$entries" | jq -c '.[]' | while read -r entry; do
 
   echo "[ACTION] Episode 1 aired → switching to WATCHING"
 
-  mutation_query='mutation ($id: Int) {
-    SaveMediaListEntry(id: $id, status: CURRENT) {
-      id
-      status
-    }
-  }'
-  variables=$(jq -n --argjson id "$entry_id" '{id: $id}')
+  # Move from planning to watching
+  mutation_query=$(get_save_media_list_entry_mutation)
+  variables=$(jq -n --argjson id "$entry_id" '{id: $id, status: "CURRENT"}')
 
-  result=$(curl -s -X POST "$API" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -d "$(jq -n --arg query "$mutation_query" --argjson variables "$variables" '{query: $query, variables: $variables}')")
+  result=$(call_api "$mutation_query" "$variables")
 
+  # Update cache if successful
   if echo "$result" | jq -e '.data.SaveMediaListEntry.status == "CURRENT"' > /dev/null; then
     echo "[SUCCESS] $title → WATCHING"
     dunstify "📺 Now Watching" "$title"
@@ -136,3 +111,6 @@ done
 
 echo
 echo "=== Done ==="
+
+# Schedule the next check
+bash "$LIB_DIR/schedule_releases.sh"

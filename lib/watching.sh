@@ -3,45 +3,28 @@ set -euo pipefail
 
 source "$HOME/.local/share/anilist/config.sh"
 source "$HOME/.local/share/anilist/lib/utils.sh"
+source "$HOME/.local/share/anilist/lib/api.sh"
 
 USER_ID=$(< "$USER_FILE")
 
-# Check for newly released episodes
-bash "$LIB_DIR/releasing.sh"
-
-query=$(
-  cat << EOF
-query (\$userName: String) {
-  MediaListCollection(userName: \$userName, type: ANIME, status: CURRENT) {
-    lists {
-      name
-      entries {
-        progress
-        media {
-          title {
-            romaji
-          }
-          status
-        }
-      }
-    }
-  }
-}
-EOF
-)
-
-response=$(curl -s -X POST https://graphql.anilist.co \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n \
-    --arg query "$query" \
-    --arg userName "$USER_ID" \
-    '{query: $query, variables: {userName: $userName}}')")
-
-if echo "$response" | jq -e '.errors' > /dev/null; then
-  dunstify -u critical "AniList error" "Failed to fetch Watching list"
-  exit 1
+# Check for newly released episodes based on schedule
+if [[ ! -f "$NEXT_RELEASE_CHECK_FILE" ]]; then
+    bash "$LIB_DIR/schedule_releases.sh"
 fi
 
+NEXT_CHECK_TS=$(< "$NEXT_RELEASE_CHECK_FILE")
+NOW_TS=$(date +%s)
+
+if (( NOW_TS >= NEXT_CHECK_TS )); then
+    bash "$LIB_DIR/releasing.sh"
+fi
+
+# Get currently watching list
+query=$(get_media_list_collection_query)
+variables=$(jq -n --arg userName "$USER_ID" --arg status "CURRENT" '{userName: $userName, status: $status}')
+response=$(call_api "$query" "$variables")
+
+# Filter for airing anime
 airing_list=$(echo "$response" | jq -r '
   .data.MediaListCollection.lists[]
   | select(.name == "Watching")
@@ -50,31 +33,18 @@ airing_list=$(echo "$response" | jq -r '
   | "\(.media.title.romaji)|\(.progress)"
 ')
 
-finished_list=$(echo "$response" | jq -r '
-  .data.MediaListCollection.lists[]
-  | select(.name == "Watching")
-  | .entries[]
-  | select(.media.status == "FINISHED")
-  | "\(.media.title.romaji)|\(.progress)"
-')
-
-# Route finished shows to binge.sh
-if [[ -n "$finished_list" ]]; then
-  export BINGE_LIST="$finished_list"
-  "$LIB_DIR/binge.sh"
-fi
-
 [[ -z "$airing_list" ]] && {
   dunstify -u low "No airing anime"
-  exit 0
 }
 
 not_released=()
 
+# Iterate through airing anime and try to play the next episode
 while IFS= read -r line; do
   IFS='|' read -r anime last <<< "$line"
   next_ep=$((last + 1))
 
+  # Try to play with ani-cli
   output=$(ani-cli "$anime" \
     -e "$next_ep" \
     --skip \
@@ -82,30 +52,16 @@ while IFS= read -r line; do
     --exit-after-play \
     -S 1 2>&1 || true)
 
+  # If episode is not released, get airing schedule
   if grep -q "Episode not released!" <<< "$output"; then
-    schedule_query=$(
-      cat << EOF
-query (\$search: String) {
-  Media(search: \$search, type: ANIME) {
-    nextAiringEpisode {
-      episode
-      airingAt
-    }
-  }
-}
-EOF
-    )
-
-    schedule_response=$(curl -s -X POST https://graphql.anilist.co \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n \
-        --arg query "$schedule_query" \
-        --arg search "$anime" \
-        '{query: $query, variables: {search: $search}}')")
+    schedule_query=$(get_schedule_query)
+    variables=$(jq -n --arg search "$anime" '{search: $search}')
+    schedule_response=$(call_api "$schedule_query" "$variables")
 
     airing_at=$(jq -r '.data.Media.nextAiringEpisode.airingAt // empty' <<< "$schedule_response")
     ep_num=$(jq -r '.data.Media.nextAiringEpisode.episode // empty' <<< "$schedule_response")
 
+    # Format and add to not_released list
     if [[ -n "$airing_at" ]]; then
       now=$(date +%s)
       remaining=$((airing_at - now))
@@ -122,6 +78,22 @@ On: $date_fmt ($remaining_fmt remaining)"
   fi
 done <<< "$airing_list"
 
+# Notify about upcoming episodes
 if ((${#not_released[@]})); then
   dunstify -u low -a ani-cli "Upcoming episodes" "$(printf "%s\n\n" "${not_released[@]}")"
+fi
+
+# Filter for finished anime in watching list
+finished_list=$(echo "$response" | jq -r '
+  .data.MediaListCollection.lists[]
+  | select(.name == "Watching")
+  | .entries[]
+  | select(.media.status == "FINISHED")
+  | "\(.media.title.romaji)|\(.progress)"
+')
+
+# If there are finished anime, start binge mode
+if [[ -n "$finished_list" ]]; then
+  export BINGE_LIST="$finished_list"
+  "$LIB_DIR/binge.sh"
 fi

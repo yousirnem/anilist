@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
-# Normalize function
+# Normalize string
+# Lowercase, remove special characters and extra spaces
 normalize() {
   echo "$1" |
     tr '[:upper:]' '[:lower:]' |
     sed -E 's/[:\-–—]/ /g; s/[^a-z0-9 ]//g; s/ +/ /g; s/^ //; s/ $//'
 }
 
+# Format duration in seconds to a human-readable format
 format_duration() {
   local s=$1
   ((s < 0)) && echo "avalible" && return

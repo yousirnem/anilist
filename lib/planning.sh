@@ -3,46 +3,27 @@ set -euo pipefail
 
 source "$HOME/.local/share/anilist/config.sh"
 source "$HOME/.local/share/anilist/lib/utils.sh"
+source "$HOME/.local/share/anilist/lib/api.sh"
+
+# Check for user authentication
+if [[ ! -f "$USER_FILE" ]] || [[ ! -f "$TOKEN_FILE" ]]; then
+    bash "$LIB_DIR/auth.sh" || exit 1
+fi
 
 USERNAME=$(< "$USER_FILE") # AniList username
-TOKEN=$(< "$TOKEN_FILE")
 
+# Choose between Serie and Movie
 choice=$(printf "Serie\nMovie" | rofi -dmenu -i -p "Choose")
 [[ -z "$choice" ]] && exit 0
 
 dunstify -u low "Looking Planning List..."
 
-query='
-query ($userName: String) {
-  MediaListCollection(userName: $userName, type: ANIME, status: PLANNING) {
-    lists {
-      entries {
-        media {
-          id
-          title { romaji }
-          format
-        }
-      }
-    }
-  }
-}
-'
+# Get planning list
+query=$(get_media_list_collection_query)
+variables=$(jq -n --arg userName "$USERNAME" '{userName: $userName, status: "PLANNING"}')
+response=$(call_api "$query" "$variables")
 
-payload=$(jq -n \
-  --arg query "$query" \
-  --arg userName "$USERNAME" \
-  '{query: $query, variables: {userName: $userName}}')
-
-response=$(curl -s -X POST https://graphql.anilist.co \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d "$payload")
-
-if echo "$response" | jq -e '.errors? | length > 0' > /dev/null; then
-  dunstify -u critical "AniList Error" "$(echo "$response" | jq -r '.errors[0].message')"
-  exit 1
-fi
-
+# Handle series
 if [[ "$choice" == "Serie" ]]; then
   list=$(echo "$response" | jq -r '
     .data.MediaListCollection.lists[]
@@ -60,36 +41,21 @@ if [[ "$choice" == "Serie" ]]; then
   anime_name="${selection%%|*}"
   media_id="${selection##*|}"
 
-  mutation='
-  mutation ($mediaId: Int) {
-    SaveMediaListEntry(mediaId: $mediaId, status: CURRENT) {
-      id
-      status
-      progress
-    }
-  }
-  '
-
-  mutation_payload=$(jq -n \
-    --arg query "$mutation" \
-    --argjson mediaId "$media_id" \
-    '{query: $query, variables: {mediaId: $mediaId}}')
-
-  set +e
-  update=$(curl -s -X POST https://graphql.anilist.co \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d "$mutation_payload")
-  set -e
+  # Move from planning to watching
+  mutation=$(get_save_media_list_entry_mutation)
+  variables=$(jq -n --argjson mediaId "$media_id" '{mediaId: $mediaId, status: "CURRENT"}')
+  update=$(call_api "$mutation" "$variables")
 
   if ! echo "$update" | jq '.data.SaveMediaListEntry' > /dev/null; then
     dunstify -u critical "AniList Update Failed"
     exit 1
   fi
 
+  # Play with ani-cli
   dunstify -u low "▶️ $anime_name → Watching"
   ani-cli "$anime_name" --skip --rofi --no-detach --exit-after-play
 
+# Handle movies
 else
   list=$(echo "$response" | jq -r '
     .data.MediaListCollection.lists[]
@@ -103,5 +69,6 @@ else
   anime_name=$(printf '%s\n' "$list" | rofi -dmenu -i -p "Movie")
   [[ -z "$anime_name" ]] && exit 0
 
+  # Play with ani-cli
   ani-cli "$anime_name" --no-detach --exit-after-play -S 1
 fi

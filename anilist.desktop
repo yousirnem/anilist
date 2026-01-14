@@ -1,11 +1,16 @@
 [Desktop Entry]
 Type=Application
 Name=Anilist
+Comment=Anime Player & Tracking
 Exec=anilist watching
 Terminal=false
 Categories=Utility;
 Keywords=anime;anilist;
-Actions=new;planning;binge;
+Actions=auth;new;planning;binge;
+
+[Desktop Action auth]
+Name=Auth
+Exec=anilist auth
 
 [Desktop Action new]
 Name=New

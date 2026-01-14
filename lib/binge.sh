@@ -3,57 +3,21 @@ set -euo pipefail
 
 source "$HOME/.local/share/anilist/config.sh"
 source "$HOME/.local/share/anilist/lib/utils.sh"
+source "$HOME/.local/share/anilist/lib/api.sh"
 
-USER_ID=$(< "$USER_FILE")
-TOKEN=$(< "$TOKEN_FILE")
-
-query=$(
-  cat << 'EOF'
-query ($userName: String) {
-  MediaListCollection(userName: $userName, type: ANIME, status: CURRENT) {
-    lists {
-      name
-      entries {
-        progress
-        media {
-          id
-          episodes
-          status
-          title {
-            romaji
-          }
-          relations {
-            edges {
-              relationType
-              node {
-                status
-                title {
-                  romaji
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-EOF
-)
-
-response=$(curl -s -X POST https://graphql.anilist.co \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n \
-    --arg query "$query" \
-    --arg userName "$USER_ID" \
-    '{query: $query, variables: {userName: $userName}}')")
-
-if echo "$response" | jq -e '.errors' > /dev/null; then
-  dunstify -u critical "AniList error" "Failed to fetch anime"
-  exit 1
+# Check for user authentication
+if [[ ! -f "$USER_FILE" ]] || [[ ! -f "$TOKEN_FILE" ]]; then
+    bash "$LIB_DIR/auth.sh" || exit 1
 fi
 
+USER_ID=$(< "$USER_FILE")
+
+# Get list of anime to binge
+query=$(get_binge_query)
+variables=$(jq -n --arg userName "$USER_ID" '{userName: $userName}')
+response=$(call_api "$query" "$variables")
+
+# Parse anime list
 anime_list=$(echo "$response" | jq -r '
   .data.MediaListCollection.lists[]
   | select(.name == "Watching")
@@ -66,38 +30,43 @@ anime_list=$(echo "$response" | jq -r '
     )"
 ')
 
+# Exit if nothing to binge
 [[ -z "$anime_list" ]] && {
   dunstify -u low "Nothing to binge"
   exit 0
 }
 
+# Select anime to binge
 choice=$(printf "%s\n" "$anime_list" | rofi -dmenu -i -p "Binge")
 [[ -z "$choice" ]] && exit 0
 
+# Parse choice
 IFS='|' read -r anime current total media_id sequel <<< "$choice"
 
 current=${current:-0}
 total=${total:-0}
 
+# Mark anime as completed
 mark_completed() {
-  curl -s -X POST https://graphql.anilist.co \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$(jq -n \
-      --argjson mediaId "$media_id" \
-      --argjson progress "$total" \
-      '{
-        query: "mutation ($mediaId: Int, $progress: Int) { SaveMediaListEntry(mediaId: $mediaId, status: COMPLETED, progress: $progress) { id } }",
-        variables: { mediaId: $mediaId, progress: $progress }
-      }')" > /dev/null
+    local mutation
+    mutation=$(get_save_media_list_entry_mutation)
+    local variables
+    variables=$(jq -n \
+        --argjson mediaId "$media_id" \
+        --argjson progress "$total" \
+        '{mediaId: $mediaId, progress: $progress, status: "COMPLETED"}')
+    call_api "$mutation" "$variables" > /dev/null
 }
 
+# Binge watch loop
 while true; do
   next=$((current + 1))
 
+  # Check if all episodes are watched
   if ((total > 0 && next > total)); then
     mark_completed
 
+    # Ask to continue with sequel
     if [[ -n "$sequel" ]]; then
       next_choice=$(printf "Yes\nNo" | rofi -dmenu -p "Continue with $sequel?")
       if [[ "$next_choice" == "Yes" ]]; then
@@ -109,6 +78,7 @@ while true; do
     break
   fi
 
+  # Play next episode with ani-cli
   ani-cli "$anime" \
     -e "$next" \
     --skip \
