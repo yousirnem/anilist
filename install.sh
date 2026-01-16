@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-deps=(curl jq dunstify ani-cli mpv rofi ani-skip)
+deps=(curl jq mpv rofi notify-send ani-cli)
 
 for dep in "${deps[@]}"; do
   command -v "$dep" > /dev/null || {

@@ -7,7 +7,7 @@ source "$HOME/.local/share/anilist/lib/api.sh"
 
 # Check for user authentication
 if [[ ! -f "$USER_FILE" ]] || [[ ! -f "$TOKEN_FILE" ]]; then
-    bash "$LIB_DIR/auth.sh" || exit 1
+  bash "$LIB_DIR/auth.sh" || exit 1
 fi
 
 USER_ID=$(< "$USER_FILE")
@@ -48,17 +48,18 @@ total=${total:-0}
 
 # Mark anime as completed
 mark_completed() {
-    local mutation
-    mutation=$(get_save_media_list_entry_mutation)
-    local variables
-    variables=$(jq -n \
-        --argjson mediaId "$media_id" \
-        --argjson progress "$total" \
-        '{mediaId: $mediaId, progress: $progress, status: "COMPLETED"}')
-    call_api "$mutation" "$variables" > /dev/null
+  local mutation
+  mutation=$(get_save_media_list_entry_mutation)
+  local variables
+  variables=$(jq -n \
+    --argjson mediaId "$media_id" \
+    --argjson progress "$total" \
+    '{mediaId: $mediaId, progress: $progress, status: "COMPLETED"}')
+  call_api "$mutation" "$variables" > /dev/null
 }
 
 # Binge watch loop
+rm -f "$CACHE_DIR/stop_binge" # Reset binge stop signal
 while true; do
   next=$((current + 1))
 
@@ -81,10 +82,15 @@ while true; do
   # Play next episode with ani-cli
   ani-cli "$anime" \
     -e "$next" \
-    --skip \
     --no-detach \
     --exit-after-play \
     --rofi
+
+  # Stop binge if user quits mid-episode
+  if [[ -f "$CACHE_DIR/stop_binge" ]]; then
+    dunstify -u low "Binge stopped"
+    break
+  fi
 
   current=$next
 done

@@ -56,6 +56,5 @@ call_api "$mutation" "$variables" > /dev/null
 
 # Play with ani-cli
 ani-cli "$title" \
-  --skip \
   --no-detach \
   --exit-after-play
