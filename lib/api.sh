@@ -23,6 +23,8 @@ call_api() {
   local response
   response=$(curl "${headers[@]}" -d "$json_payload" "$API")
 
+  echo "API Response: $response" >> "$LOG_FILE"
+
   if echo "$response" | jq -e '.errors' > /dev/null; then
     dunstify -u critical "AniList API error" "$(echo "$response" | jq -r '.errors[0].message')"
     exit 1
@@ -41,6 +43,7 @@ query ($userName: String, $status: MediaListStatus) {
       entries {
         id
         progress
+        score
         media {
           id
           title {
@@ -101,6 +104,20 @@ mutation ($id: Int, $mediaId: Int, $progress: Int, $status: MediaListStatus) {
     id
     progress
     status
+  }
+}
+EOF
+}
+
+# Get mutation for saving media list entry with score
+get_save_media_list_entry_mutation_with_score() {
+  cat << 'EOF'
+mutation ($id: Int, $mediaId: Int, $progress: Int, $status: MediaListStatus, $score: Float) {
+  SaveMediaListEntry(id: $id, mediaId: $mediaId, progress: $progress, status: $status, score: $score) {
+    id
+    progress
+    status
+    score
   }
 }
 EOF
@@ -176,3 +193,41 @@ query ($userName: String) {
 }
 EOF
 }
+
+get_user_recommendations_query() {
+  cat << 'EOF'
+query {
+  Page(page: 1, perPage: 20) {
+    recommendations(sort: RATING_DESC) {
+      id
+      mediaRecommendation {
+        id
+        title {
+          romaji
+          english
+          native
+        }
+        type
+      }
+    }
+  }
+}
+EOF
+}
+
+get_all_user_media_query() {
+  cat << 'EOF'
+query ($userName: String) {
+  MediaListCollection(userName: $userName, type: ANIME, status_in: [PLANNING, CURRENT, COMPLETED, PAUSED, DROPPED]) {
+    lists {
+      entries {
+        media {
+          id
+        }
+      }
+    }
+  }
+}
+EOF
+}
+

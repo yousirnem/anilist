@@ -21,7 +21,10 @@ case "${1:-}" in
   binge)
 	source "$LIB_DIR/binge.sh"
   ;;
+  score)
+  source "$LIB_DIR/score.sh"
+  ;;
   *)
-	echo "Unknown command"
+	source "$LIB_DIR/score.sh"
   ;;
 esac

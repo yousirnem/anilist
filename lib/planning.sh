@@ -7,7 +7,7 @@ source "$HOME/.local/share/anilist/lib/api.sh"
 
 # Check for user authentication
 if [[ ! -f "$USER_FILE" ]] || [[ ! -f "$TOKEN_FILE" ]]; then
-    bash "$LIB_DIR/auth.sh" || exit 1
+  bash "$LIB_DIR/auth.sh" || exit 1
 fi
 
 USERNAME=$(< "$USER_FILE") # AniList username
@@ -53,7 +53,7 @@ if [[ "$choice" == "Serie" ]]; then
 
   # Play with ani-cli
   dunstify -u low "▶️ $anime_name → Watching"
-  ani-cli "$anime_name" --skip --rofi --no-detach --exit-after-play
+  ani-cli "$anime_name" --rofi --no-detach --exit-after-play
 
 # Handle movies
 else

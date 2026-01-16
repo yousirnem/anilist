@@ -6,7 +6,7 @@ Exec=anilist watching
 Terminal=false
 Categories=Utility;
 Keywords=anime;anilist;
-Actions=auth;new;planning;binge;
+Actions=auth;new;planning;binge;score;
 
 [Desktop Action auth]
 Name=Auth
@@ -23,3 +23,7 @@ Exec=anilist planning
 [Desktop Action binge]
 Name=Binge
 Exec=anilist binge
+
+[Desktop Action score]
+Name=Score
+Exec=anilist score

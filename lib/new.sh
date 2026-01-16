@@ -9,26 +9,50 @@ if [[ ! -f "$TOKEN_FILE" ]]; then
 fi
 
 # Search input
-if [[ -t 0 ]]; then
+options="Search
+Recommendations"
+choice=$(echo "$options" | rofi -dmenu -i -p "Choose an option")
+
+[ -z "$choice" ] && exit 0
+
+if [[ "$choice" == "Search" ]]; then
   search=$(rofi -dmenu -i -p "Search anime")
-else
-  read -r search
+  [ -z "$search" ] && exit 0
+
+  # AniList search query
+  query=$(get_new_search_query)
+  variables=$(jq -n --arg s "$search" '{search: $s}')
+  response=$(call_api "$query" "$variables")
+
+  # Parse results
+  mapfile -t results < <(
+    echo "$response" | jq -r '
+      .data.Page.media[]
+      | "\(.id)::\(.title.romaji // .title.english // .title.native)"
+    '
+  )
+elif [[ "$choice" == "Recommendations" ]]; then
+  # Get user's anime list
+  username=$(< "$USER_FILE")
+  user_anime_query=$(get_all_user_media_query)
+  user_anime_variables=$(jq -n --arg u "$username" '{userName: $u}')
+  user_anime_response=$(call_api "$user_anime_query" "$user_anime_variables")
+  user_anime_ids=$(echo "$user_anime_response" | jq '[.data.MediaListCollection.lists[].entries[].media.id]')
+
+  # Get recommendations
+  query=$(get_user_recommendations_query)
+  variables="{}"
+  response=$(call_api "$query" "$variables")
+
+  # Parse and filter results
+  mapfile -t results < <(
+    echo "$response" | jq -r --argjson watched_ids "$user_anime_ids" '
+      .data.Page.recommendations | map(
+        select(.mediaRecommendation.id as $id | $watched_ids | index($id) | not)
+      )[] | .mediaRecommendation | "\(.id)::\(.title.romaji // .title.english // .title.native)"
+    '
+  )
 fi
-
-[ -z "$search" ] && exit 0
-
-# AniList search query
-query=$(get_new_search_query)
-variables=$(jq -n --arg s "$search" '{search: $s}')
-response=$(call_api "$query" "$variables")
-
-# Parse results
-mapfile -t results < <(
-  echo "$response" | jq -r '
-    .data.Page.media[]
-    | "\(.id)::\(.title.romaji // .title.english // .title.native)"
-  '
-)
 
 count="${#results[@]}"
 

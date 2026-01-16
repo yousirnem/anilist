@@ -68,6 +68,12 @@ while true; do
     mark_completed
 
     # Ask to continue with sequel
+    answer=$(printf "Yes\nNo" | rofi -dmenu -p "Rate this anime?")
+    if [[ "$answer" == "Yes" ]]; then
+      "$LIB_DIR/score.sh "$media_id" $choice"
+    fi
+
+    # Ask to continue with sequel
     if [[ -n "$sequel" ]]; then
       next_choice=$(printf "Yes\nNo" | rofi -dmenu -p "Continue with $sequel?")
       if [[ "$next_choice" == "Yes" ]]; then
