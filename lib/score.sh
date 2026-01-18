@@ -174,7 +174,7 @@ while IFS= read -r entry; do
 
   score_input=$(
     printf "\n" |
-      rofi -dmenu -i -p "$anime_name — $score_prompt" \
+      rofi -dmenu -location 2 -i -p "$anime_name" \
         -theme-str 'window { height: 120px; } listview { lines: 1; }'
   )
 

@@ -30,7 +30,7 @@ airing_list=$(echo "$response" | jq -r '
   | select(.name == "Watching")
   | .entries[]
   | select(.media.status == "RELEASING")
-  | "\(.media.title.romaji)|\(.progress)"
+  | "\(.media.title.romaji)|\(.progress)|\(.media.id)"
 ')
 
 [[ -z "$airing_list" ]] && {
@@ -39,38 +39,56 @@ airing_list=$(echo "$response" | jq -r '
 
 not_released=()
 
-# Iterate through airing anime and try to play the next episode
-while IFS= read -r line; do
-  IFS='|' read -r anime last <<< "$line"
-  next_ep=$((last + 1))
+play_episode() {
+  local anime="$1"
+  local last="$2"
+  local media_id="$3"
+  local next_ep=$((last + 1))
 
-  # Try to play with ani-cli
-  output=$(ani-cli "$anime" \
-    -e "$next_ep" \
-    --no-detach \
-    --exit-after-play \
-    -S 1 2>&1 || true)
+  local output
+  output=$(ani-cli "$anime" -e "$next_ep" --no-detach --exit-after-play -S 1 2>&1 || true)
 
-  # If episode is not released, get airing schedule
   if grep -q "Episode not released!" <<< "$output"; then
-    schedule_query=$(get_schedule_query)
-    variables=$(jq -n --arg search "$anime" '{search: $search}')
-    schedule_response=$(call_api "$schedule_query" "$variables")
-
-    airing_at=$(jq -r '.data.Media.nextAiringEpisode.airingAt // empty' <<< "$schedule_response")
-    ep_num=$(jq -r '.data.Media.nextAiringEpisode.episode // empty' <<< "$schedule_response")
-
-    # Format and add to not_released list
-    if [[ -n "$airing_at" ]]; then
-      now=$(date +%s)
-      remaining=$((airing_at - now))
-      date_fmt=$(date -d "@$airing_at" '+%d/%m/%Y %H:%M')
-      remaining_fmt=$(format_duration "$remaining")
-      not_released+=("${anime:0:8}... [$ep_num] on $remaining_fmt")
+    local next_airing_episode
+    next_airing_episode=$(get_next_airing_episode "$media_id")
+    
+    if [[ -n "$next_airing_episode" && "$next_airing_episode" -eq $((last + 2)) ]]; then
+      "$LIB_DIR/wait_for_episode.sh" "$anime" "$next_ep"
     else
-      not_released+=("$anime — Ep. $next_ep not yet available")
+      # Original logic for not released episodes
+      local schedule_query
+      schedule_query=$(get_schedule_query)
+      local variables
+      variables=$(jq -n --arg search "$anime" '{search: $search}')
+      local schedule_response
+      schedule_response=$(call_api "$schedule_query" "$variables")
+
+      local airing_at
+      airing_at=$(jq -r '.data.Media.nextAiringEpisode.airingAt // empty' <<< "$schedule_response")
+      local ep_num
+      ep_num=$(jq -r '.data.Media.nextAiringEpisode.episode // empty' <<< "$schedule_response")
+
+      if [[ -n "$airing_at" ]]; then
+        local now
+        now=$(date +%s)
+        local remaining
+        remaining=$((airing_at - now))
+        local date_fmt
+        date_fmt=$(date -d "@$airing_at" '+%d/%m/%Y %H:%M')
+        local remaining_fmt
+        remaining_fmt=$(format_duration "$remaining")
+        not_released+=("${anime:0:8}... [$ep_num] on $remaining_fmt")
+      else
+        not_released+=("$anime — Ep. $next_ep not yet available")
+      fi
     fi
   fi
+}
+
+# Iterate through airing anime and try to play the next episode
+while IFS= read -r line; do
+  IFS='|' read -r anime last media_id <<< "$line"
+  play_episode "$anime" "$last" "$media_id"
 done <<< "$airing_list"
 
 # Notify about upcoming episodes

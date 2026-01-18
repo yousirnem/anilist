@@ -231,3 +231,26 @@ query ($userName: String) {
 EOF
 }
 
+get_next_airing_episode_query() {
+  cat << 'EOF'
+query ($mediaId: Int) {
+  Media(id: $mediaId, type: ANIME) {
+    nextAiringEpisode {
+      episode
+    }
+  }
+}
+EOF
+}
+
+get_next_airing_episode() {
+  local media_id="$1"
+  local query
+  query=$(get_next_airing_episode_query)
+  local variables
+  variables=$(jq -n --argjson mediaId "$media_id" '{mediaId: $mediaId}')
+  local response
+  response=$(call_api "$query" "$variables")
+  echo "$response" | jq -r '.data.Media.nextAiringEpisode.episode'
+}
+
