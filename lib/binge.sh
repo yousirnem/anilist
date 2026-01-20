@@ -39,14 +39,13 @@ anime_list=$(echo "$response" | jq -r '
 # Select anime to binge
 choice=$(printf "%s\n" "$anime_list" | rofi -dmenu -i -p "Binge")
 [[ -z "$choice" ]] && exit 0
-
 # Parse choice
 IFS='|' read -r anime current total media_id sequel <<< "$choice"
 
 current=${current:-0}
 total=${total:-0}
 
-# Mark anime as completed
+#! Mark anime as completed
 mark_completed() {
   local mutation
   mutation=$(get_save_media_list_entry_mutation)
@@ -57,6 +56,19 @@ mark_completed() {
     '{mediaId: $mediaId, progress: $progress, status: "COMPLETED"}')
   call_api "$mutation" "$variables" > /dev/null
 }
+
+# Normalize function
+normalize_string() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g'
+}
+
+# Load aliases
+declare -A aliases
+if [[ -f "$DATA_DIR/aliases.conf" ]]; then
+  while IFS='=' read -r key value; do
+    aliases["$(normalize_string "$key")"]="$value"
+  done < "$DATA_DIR/aliases.conf"
+fi
 
 # Binge watch loop
 rm -f "$CACHE_DIR/stop_binge" # Reset binge stop signal
@@ -85,8 +97,12 @@ while true; do
     break
   fi
 
+  # Check if anime needs alias
+  normalized_anime=$(normalize_string "$anime")
+  search_term="${aliases[$normalized_anime]:-$anime}"
+
   # Play next episode with ani-cli
-  ani-cli "$anime" \
+  ani-cli "$search_term" \
     -e "$next" \
     --no-detach \
     --exit-after-play \

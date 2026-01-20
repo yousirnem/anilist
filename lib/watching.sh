@@ -51,7 +51,7 @@ play_episode() {
   if grep -q "Episode not released!" <<< "$output"; then
     local next_airing_episode
     next_airing_episode=$(get_next_airing_episode "$media_id")
-    
+
     if [[ -n "$next_airing_episode" && "$next_airing_episode" -eq $((last + 2)) ]]; then
       "$LIB_DIR/wait_for_episode.sh" "$anime" "$next_ep"
     else
@@ -104,9 +104,3 @@ finished_list=$(echo "$response" | jq -r '
   | select(.media.status == "FINISHED")
   | "\(.media.title.romaji)|\(.progress)"
 ')
-
-# If there are finished anime, start binge mode
-if [[ -n "$finished_list" ]]; then
-  export BINGE_LIST="$finished_list"
-  "$LIB_DIR/binge.sh"
-fi
